@@ -1,9 +1,10 @@
+mod admins;
 mod auth;
 mod config;
 mod error;
 mod state;
 
-use axum::{routing::{get, post}, Router};
+use axum::{routing::{delete, get, post, put}, Router};
 use sqlx::postgres::PgPoolOptions;
 use tokio::sync::broadcast;
 use crate::{config::Config, state::AppState};
@@ -30,6 +31,9 @@ async fn main() {
         .route("/auth/login", post(login))
         .route("/auth/refresh", post(refresh))
         .route("/auth/logout", post(logout))
+        .route("/api/v1/admins", get(admins::handlers::list_admins).post(admins::handlers::create_admin))
+        .route("/api/v1/admins/:id", delete(admins::handlers::delete_admin))
+        .route("/api/v1/admins/:id/password", put(admins::handlers::change_password))
         .with_state(state);
 
     let addr = format!("0.0.0.0:{}", config.port);
