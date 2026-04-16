@@ -6,12 +6,16 @@ mod field_definitions;
 mod members;
 mod roles;
 mod state;
+mod ws;
 
 use axum::{routing::{delete, get, post, put}, Router};
+use axum::http::{Method, header};
+use tower_http::cors::CorsLayer;
 use sqlx::postgres::PgPoolOptions;
 use tokio::sync::broadcast;
 use crate::{config::Config, state::AppState};
 use auth::handlers::{login, refresh, logout};
+use ws::handler::ws_handler;
 
 #[tokio::main]
 async fn main() {
@@ -29,8 +33,15 @@ async fn main() {
     let (ws_tx, _) = broadcast::channel(100);
     let state = AppState { db, config: config.clone(), ws_tx };
 
+    let cors = CorsLayer::new()
+        .allow_origin(state.config.frontend_url.parse::<axum::http::HeaderValue>().unwrap())
+        .allow_methods([Method::GET, Method::POST, Method::PUT, Method::DELETE])
+        .allow_headers([header::CONTENT_TYPE, header::AUTHORIZATION, header::ACCEPT])
+        .allow_credentials(true);
+
     let app = Router::new()
         .route("/health", get(|| async { "ok" }))
+        .route("/ws", get(ws_handler))
         .route("/auth/login", post(login))
         .route("/auth/refresh", post(refresh))
         .route("/auth/logout", post(logout))
@@ -44,6 +55,7 @@ async fn main() {
         .route("/api/v1/roles/:id", axum::routing::delete(roles::handlers::delete_role))
         .route("/api/v1/field-definitions", get(field_definitions::handlers::list_fields).post(field_definitions::handlers::create_field))
         .route("/api/v1/field-definitions/:id", axum::routing::delete(field_definitions::handlers::delete_field))
+        .layer(cors)
         .with_state(state);
 
     let addr = format!("0.0.0.0:{}", config.port);
