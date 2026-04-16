@@ -1,3 +1,4 @@
+// frontend/src/components/MemberForm.tsx
 import { useQuery } from '@tanstack/react-query'
 import { getFieldDefinitions } from '../api/fieldDefinitions'
 import type { Member, MembershipType } from '../types'
@@ -12,6 +13,8 @@ export function MemberForm({ value, onChange, disabled }: Props) {
   const { data: fields = [] } = useQuery({ queryKey: ['field-definitions'], queryFn: getFieldDefinitions })
 
   const set = (key: keyof Member, val: unknown) => onChange({ ...value, [key]: val })
+  const cf = value.custom_fields as Record<string, unknown> ?? {}
+  const setCf = (name: string, val: unknown) => set('custom_fields', { ...cf, [name]: val })
 
   return (
     <div className="space-y-4">
@@ -62,15 +65,25 @@ export function MemberForm({ value, onChange, disabled }: Props) {
             {fields.map(f => (
               <div key={f.id}>
                 <label className="block text-sm font-medium mb-1">{f.name}{f.required && ' *'}</label>
-                {f.field_type === 'boolean' ? (
+                {f.field_type === 'enum' ? (
+                  <select disabled={disabled} className="border rounded px-3 py-2 w-full"
+                    value={cf[f.name] as string ?? ''}
+                    onChange={e => setCf(f.name, e.target.value || null)}>
+                    <option value="">Select...</option>
+                    {f.options.map(opt => (
+                      <option key={opt.id} value={opt.value}>{opt.value}</option>
+                    ))}
+                  </select>
+                ) : f.field_type === 'boolean' ? (
                   <input type="checkbox" disabled={disabled}
-                    checked={!!(value.custom_fields as Record<string, unknown>)?.[f.name]}
-                    onChange={e => set('custom_fields', { ...(value.custom_fields as Record<string, unknown>), [f.name]: e.target.checked })} />
+                    checked={!!cf[f.name]}
+                    onChange={e => setCf(f.name, e.target.checked)} />
                 ) : (
-                  <input type={f.field_type === 'number' ? 'number' : f.field_type === 'date' ? 'date' : 'text'}
+                  <input
+                    type={f.field_type === 'number' ? 'number' : f.field_type === 'date' ? 'date' : 'text'}
                     disabled={disabled} className="border rounded w-full px-3 py-2"
-                    value={(value.custom_fields as Record<string, unknown>)?.[f.name] as string ?? ''}
-                    onChange={e => set('custom_fields', { ...(value.custom_fields as Record<string, unknown>), [f.name]: e.target.value || null })} />
+                    value={cf[f.name] as string ?? ''}
+                    onChange={e => setCf(f.name, e.target.value || null)} />
                 )}
               </div>
             ))}
