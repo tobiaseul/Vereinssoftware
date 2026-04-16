@@ -1,6 +1,6 @@
 export type AdminRole = 'Admin' | 'SuperAdmin'
 export type MembershipType = 'Aktiv' | 'Passiv' | 'Ehrenmitglied'
-export type FieldType = 'text' | 'number' | 'date' | 'boolean'
+export type FieldType = 'text' | 'number' | 'date' | 'boolean' | 'enum'
 
 export interface Admin {
   id: string
@@ -29,10 +29,11 @@ export interface Member {
   updated_at: string
 }
 
-export interface Role {
+export interface FieldOption {
   id: string
-  name: string
-  created_at: string
+  field_definition_id: string
+  value: string
+  display_order: number
 }
 
 export interface FieldDefinition {
@@ -41,6 +42,13 @@ export interface FieldDefinition {
   field_type: FieldType
   required: boolean
   display_order: number
+  options: FieldOption[]
+  created_at: string
+}
+
+export interface Role {
+  id: string
+  name: string
   created_at: string
 }
 
