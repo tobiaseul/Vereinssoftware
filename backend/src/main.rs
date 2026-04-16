@@ -4,7 +4,6 @@ mod config;
 mod error;
 mod field_definitions;
 mod members;
-mod roles;
 mod state;
 mod ws;
 
@@ -51,10 +50,10 @@ async fn main() {
         .route("/api/v1/members", get(members::handlers::list_members).post(members::handlers::create_member))
         .route("/api/v1/members/export", get(members::handlers::export_members))
         .route("/api/v1/members/:id", get(members::handlers::get_member).put(members::handlers::update_member).delete(members::handlers::delete_member))
-        .route("/api/v1/roles", get(roles::handlers::list_roles).post(roles::handlers::create_role))
-        .route("/api/v1/roles/:id", axum::routing::delete(roles::handlers::delete_role))
         .route("/api/v1/field-definitions", get(field_definitions::handlers::list_fields).post(field_definitions::handlers::create_field))
-        .route("/api/v1/field-definitions/:id", axum::routing::delete(field_definitions::handlers::delete_field))
+        .route("/api/v1/field-definitions/:id", put(field_definitions::handlers::update_field).delete(field_definitions::handlers::delete_field))
+        .route("/api/v1/field-definitions/:id/options", post(field_definitions::handlers::add_option))
+        .route("/api/v1/field-definitions/:id/options/:option_id", put(field_definitions::handlers::update_option).delete(field_definitions::handlers::delete_option))
         .layer(cors)
         .with_state(state);
 
