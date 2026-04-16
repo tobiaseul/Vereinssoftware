@@ -7,19 +7,26 @@ import type { FieldType } from '../types'
 export function FieldsPage() {
   const qc = useQueryClient()
   const [form, setForm] = useState({ name: '', field_type: 'text' as FieldType, required: false })
+  const [error, setError] = useState<string | null>(null)
+  const [deletingId, setDeletingId] = useState<string | null>(null)
   const { data: fields = [] } = useQuery({ queryKey: ['field-definitions'], queryFn: getFieldDefinitions })
   const add = useMutation({
     mutationFn: () => createFieldDefinition(form),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['field-definitions'] }); setForm({ name: '', field_type: 'text', required: false }) }
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['field-definitions'] }); setForm({ name: '', field_type: 'text', required: false }); setError(null) },
+    onError: (err) => setError(err instanceof Error ? err.message : 'Failed to add')
   })
   const remove = useMutation({
-    mutationFn: deleteFieldDefinition,
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['field-definitions'] })
+    mutationFn: (id: string) => deleteFieldDefinition(id),
+    onMutate: (id) => setDeletingId(id),
+    onSettled: () => setDeletingId(null),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['field-definitions'] }); setError(null) },
+    onError: (err) => setError(err instanceof Error ? err.message : 'Failed to delete')
   })
 
   return (
     <div className="p-6 max-w-lg mx-auto">
       <h1 className="text-2xl font-bold mb-4">Custom Fields</h1>
+      {error && <p className="text-red-600 text-sm mb-2">{error}</p>}
       <div className="flex gap-2 mb-4">
         <input className="border rounded px-3 py-2 flex-1" placeholder="Field name..." value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} />
         <select className="border rounded px-3 py-2" value={form.field_type} onChange={e => setForm(f => ({ ...f, field_type: e.target.value as FieldType }))}>
@@ -37,7 +44,7 @@ export function FieldsPage() {
         {fields.map(f => (
           <li key={f.id} className="flex justify-between items-center border rounded px-3 py-2">
             <span>{f.name} <span className="text-gray-500 text-sm">({f.field_type}{f.required ? ', required' : ''})</span></span>
-            <button onClick={() => remove.mutate(f.id)} className="text-red-600 hover:text-red-800 text-sm">Remove</button>
+            <button disabled={deletingId === f.id} onClick={() => { if (confirm(`Remove "${f.name}"?`)) remove.mutate(f.id) }} className="text-red-600 hover:text-red-800 text-sm disabled:opacity-50">Remove</button>
           </li>
         ))}
       </ul>

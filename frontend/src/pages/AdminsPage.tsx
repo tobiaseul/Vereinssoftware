@@ -9,19 +9,26 @@ export function AdminsPage() {
   const { auth } = useAuth()
   const qc = useQueryClient()
   const [form, setForm] = useState({ username: '', password: '', role: 'Admin' as AdminRole })
+  const [error, setError] = useState<string | null>(null)
+  const [deletingId, setDeletingId] = useState<string | null>(null)
   const { data: admins = [] } = useQuery({ queryKey: ['admins'], queryFn: getAdmins })
   const add = useMutation({
     mutationFn: () => createAdmin(form),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['admins'] }); setForm({ username: '', password: '', role: 'Admin' }) }
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['admins'] }); setForm({ username: '', password: '', role: 'Admin' }); setError(null) },
+    onError: (err) => setError(err instanceof Error ? err.message : 'Failed to add')
   })
   const remove = useMutation({
-    mutationFn: deleteAdmin,
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['admins'] })
+    mutationFn: (id: string) => deleteAdmin(id),
+    onMutate: (id) => setDeletingId(id),
+    onSettled: () => setDeletingId(null),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['admins'] }); setError(null) },
+    onError: (err) => setError(err instanceof Error ? err.message : 'Failed to delete')
   })
 
   return (
     <div className="p-6 max-w-lg mx-auto">
       <h1 className="text-2xl font-bold mb-4">Admin Users</h1>
+      {error && <p className="text-red-600 text-sm mb-2">{error}</p>}
       <div className="grid grid-cols-2 gap-2 mb-4">
         <input className="border rounded px-3 py-2" placeholder="Username" value={form.username} onChange={e => setForm(f => ({ ...f, username: e.target.value }))} />
         <input type="password" className="border rounded px-3 py-2" placeholder="Password" value={form.password} onChange={e => setForm(f => ({ ...f, password: e.target.value }))} />
@@ -41,8 +48,8 @@ export function AdminsPage() {
               {a.id === auth?.admin_id && <span className="ml-2 text-xs text-blue-500">(you)</span>}
             </div>
             {a.id !== auth?.admin_id && (
-              <button onClick={() => { if (confirm(`Remove ${a.username}?`)) remove.mutate(a.id) }}
-                className="text-red-600 hover:text-red-800 text-sm">Remove</button>
+              <button disabled={deletingId === a.id} onClick={() => { if (confirm(`Remove ${a.username}?`)) remove.mutate(a.id) }}
+                className="text-red-600 hover:text-red-800 text-sm disabled:opacity-50">Remove</button>
             )}
           </li>
         ))}
