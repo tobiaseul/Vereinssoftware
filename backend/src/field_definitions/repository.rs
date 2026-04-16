@@ -32,6 +32,15 @@ pub async fn list_fields(db: &PgPool) -> Result<Vec<FieldDefinition>, AppError> 
     }).collect())
 }
 
+fn map_unique_violation(e: sqlx::Error, field: &str, msg: &str) -> AppError {
+    if let sqlx::Error::Database(ref db_err) = e {
+        if db_err.code().map(|c| c == "23505").unwrap_or(false) {
+            return AppError::Validation(vec![(field.into(), msg.into())]);
+        }
+    }
+    AppError::Internal(e.into())
+}
+
 pub async fn create_field(db: &PgPool, req: &CreateFieldRequest) -> Result<FieldDefinition, AppError> {
     let valid = ["text", "number", "date", "boolean", "enum"];
     if !valid.contains(&req.field_type.as_str()) {
@@ -47,19 +56,27 @@ pub async fn create_field(db: &PgPool, req: &CreateFieldRequest) -> Result<Field
         req.name, req.field_type,
         req.required.unwrap_or(false),
         req.display_order.unwrap_or(0)
-    ).fetch_one(db).await?;
+    ).fetch_one(db).await
+        .map_err(|e| map_unique_violation(e, "name", "a field with this name already exists"))?;
     Ok(FieldDefinition::from_row(row, vec![]))
 }
 
-pub async fn update_field(db: &PgPool, id: Uuid, req: &UpdateFieldRequest) -> Result<Option<FieldDefinitionRow>, AppError> {
-    Ok(sqlx::query_as_unchecked!(
+pub async fn update_field(db: &PgPool, id: Uuid, req: &UpdateFieldRequest) -> Result<Option<FieldDefinition>, AppError> {
+    let row = sqlx::query_as_unchecked!(
         FieldDefinitionRow,
         r#"UPDATE field_definitions
            SET name = COALESCE($2, name), required = COALESCE($3, required)
            WHERE id = $1
            RETURNING id, name, field_type as "field_type: String", required, display_order, created_at"#,
         id, req.name, req.required
-    ).fetch_optional(db).await?)
+    ).fetch_optional(db).await?;
+    match row {
+        None => Ok(None),
+        Some(row) => {
+            let options = get_options(db, id).await?;
+            Ok(Some(FieldDefinition::from_row(row, options)))
+        }
+    }
 }
 
 pub async fn delete_field(db: &PgPool, id: Uuid) -> Result<bool, AppError> {
@@ -77,13 +94,14 @@ pub async fn get_options(db: &PgPool, field_id: Uuid) -> Result<Vec<FieldOption>
 }
 
 pub async fn add_option(db: &PgPool, field_id: Uuid, req: &CreateOptionRequest) -> Result<FieldOption, AppError> {
-    Ok(sqlx::query_as!(
+    sqlx::query_as!(
         FieldOption,
         "INSERT INTO field_definition_options (field_definition_id, value, display_order)
          VALUES ($1, $2, $3)
          RETURNING id, field_definition_id, value, display_order",
         field_id, req.value, req.display_order.unwrap_or(0)
-    ).fetch_one(db).await?)
+    ).fetch_one(db).await
+        .map_err(|e| map_unique_violation(e, "value", "option value already exists for this field"))
 }
 
 pub async fn update_option(db: &PgPool, field_id: Uuid, option_id: Uuid, req: &UpdateOptionRequest) -> Result<Option<FieldOption>, AppError> {
