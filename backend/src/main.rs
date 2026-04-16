@@ -2,6 +2,7 @@ mod admins;
 mod auth;
 mod config;
 mod error;
+mod members;
 mod state;
 
 use axum::{routing::{delete, get, post, put}, Router};
@@ -34,6 +35,9 @@ async fn main() {
         .route("/api/v1/admins", get(admins::handlers::list_admins).post(admins::handlers::create_admin))
         .route("/api/v1/admins/:id", delete(admins::handlers::delete_admin))
         .route("/api/v1/admins/:id/password", put(admins::handlers::change_password))
+        .route("/api/v1/members", get(members::handlers::list_members).post(members::handlers::create_member))
+        .route("/api/v1/members/export", get(members::handlers::export_members))
+        .route("/api/v1/members/:id", get(members::handlers::get_member).put(members::handlers::update_member).delete(members::handlers::delete_member))
         .with_state(state);
 
     let addr = format!("0.0.0.0:{}", config.port);
