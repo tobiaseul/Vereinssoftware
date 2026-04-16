@@ -3,10 +3,11 @@ mod config;
 mod error;
 mod state;
 
-use axum::{routing::get, Router};
+use axum::{routing::{get, post}, Router};
 use sqlx::postgres::PgPoolOptions;
 use tokio::sync::broadcast;
 use crate::{config::Config, state::AppState};
+use auth::handlers::{login, refresh, logout};
 
 #[tokio::main]
 async fn main() {
@@ -26,6 +27,9 @@ async fn main() {
 
     let app = Router::new()
         .route("/health", get(|| async { "ok" }))
+        .route("/auth/login", post(login))
+        .route("/auth/refresh", post(refresh))
+        .route("/auth/logout", post(logout))
         .with_state(state);
 
     let addr = format!("0.0.0.0:{}", config.port);
