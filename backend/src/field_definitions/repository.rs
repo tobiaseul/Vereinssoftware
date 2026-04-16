@@ -32,10 +32,12 @@ pub async fn list_fields(db: &PgPool) -> Result<Vec<FieldDefinition>, AppError> 
     }).collect())
 }
 
-fn map_unique_violation(e: sqlx::Error, field: &str, msg: &str) -> AppError {
+fn map_db_insert_error(e: sqlx::Error, unique_field: &str, unique_msg: &str) -> AppError {
     if let sqlx::Error::Database(ref db_err) = e {
-        if db_err.code().map(|c| c == "23505").unwrap_or(false) {
-            return AppError::Validation(vec![(field.into(), msg.into())]);
+        match db_err.code().as_deref() {
+            Some("23505") => return AppError::Validation(vec![(unique_field.into(), unique_msg.into())]),
+            Some("23503") => return AppError::NotFound("Field not found".into()),
+            _ => {}
         }
     }
     AppError::Internal(e.into())
@@ -57,7 +59,7 @@ pub async fn create_field(db: &PgPool, req: &CreateFieldRequest) -> Result<Field
         req.required.unwrap_or(false),
         req.display_order.unwrap_or(0)
     ).fetch_one(db).await
-        .map_err(|e| map_unique_violation(e, "name", "a field with this name already exists"))?;
+        .map_err(|e| map_db_insert_error(e, "name", "a field with this name already exists"))?;
     Ok(FieldDefinition::from_row(row, vec![]))
 }
 
@@ -101,7 +103,7 @@ pub async fn add_option(db: &PgPool, field_id: Uuid, req: &CreateOptionRequest) 
          RETURNING id, field_definition_id, value, display_order",
         field_id, req.value, req.display_order.unwrap_or(0)
     ).fetch_one(db).await
-        .map_err(|e| map_unique_violation(e, "value", "option value already exists for this field"))
+        .map_err(|e| map_db_insert_error(e, "value", "option value already exists for this field"))
 }
 
 pub async fn update_option(db: &PgPool, field_id: Uuid, option_id: Uuid, req: &UpdateOptionRequest) -> Result<Option<FieldOption>, AppError> {
