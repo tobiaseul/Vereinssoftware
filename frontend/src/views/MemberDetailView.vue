@@ -30,10 +30,11 @@ const { mutate: save, isPending: isSaving } = useMutation({
     qc.setQueryData(['member', id], updated)
     draft.value = { ...updated }
   },
-  onError: async (err: unknown) => {
+  onError: (err: unknown) => {
     if (err instanceof AxiosError && err.response?.status === 409) {
-      const serverMember = await getMember(id)
-      conflict.value = { serverMember, myDraft: draft.value! }
+      getMember(id).then((serverMember) => {
+        conflict.value = { serverMember, myDraft: draft.value! }
+      })
     }
   },
 })

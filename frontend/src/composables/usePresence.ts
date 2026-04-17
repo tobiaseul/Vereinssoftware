@@ -8,7 +8,8 @@ export function usePresence(memberId: string) {
   onMounted(() => {
     const token = getAccessToken()
     if (!token) return
-    ws = new WebSocket(`ws://localhost:3000/ws?token=${token}`)
+    const wsUrl = `${window.location.protocol === 'https:' ? 'wss' : 'ws'}://${window.location.host}/ws?token=${token}`
+    ws = new WebSocket(wsUrl)
 
     ws.onopen = () => {
       ws!.send(JSON.stringify({ type: 'viewing', member_id: memberId }))
