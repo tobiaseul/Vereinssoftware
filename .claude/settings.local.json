@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(/Users/tobi/.claude/plugins/cache/claude-plugins-official/superpowers/5.0.7/skills/brainstorming/scripts/start-server.sh *)",
+      "Read(//usr/local/bin/**)",
+      "Read(//opt/homebrew/bin/**)",
+      "Read(//Users/tobi/.nvm/versions/**)",
+      "Read(//Users/tobi/.volta/**)",
+      "Read(//usr/local/**)",
+      "Bash(createdb vereinssoftware *)",
+      "Bash(echo \"exit: $?\")",
+      "Bash(git init *)"
+    ]
+  }
+}
