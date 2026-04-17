@@ -41,9 +41,18 @@ const router = createRouter({
   ],
 })
 
+let silentRefreshPromise: Promise<void> | null = null
+
 router.beforeEach(async (to) => {
   const auth = useAuthStore()
-  if (auth.isLoading) await auth.silentRefresh()
+  if (auth.isLoading) {
+    if (!silentRefreshPromise) {
+      silentRefreshPromise = auth.silentRefresh().finally(() => {
+        silentRefreshPromise = null
+      })
+    }
+    await silentRefreshPromise
+  }
   if (to.meta.requiresAuth && !auth.auth) return '/login'
   if (to.meta.requiresSuperAdmin && auth.auth?.role !== 'SuperAdmin') return '/members'
 })
