@@ -15,18 +15,12 @@ async function logout() {
 </script>
 
 <template>
-  <el-menu v-if="auth.auth" mode="horizontal" :ellipsis="false">
-    <el-menu-item index="members">
-      <router-link to="/members">Members</router-link>
-    </el-menu-item>
-    <el-menu-item index="fields">
-      <router-link to="/settings/fields">Fields</router-link>
-    </el-menu-item>
-    <el-menu-item v-if="isSuperAdmin" index="admins">
-      <router-link to="/settings/admins">Admins</router-link>
-    </el-menu-item>
+  <el-menu v-if="auth.auth" mode="horizontal" :ellipsis="false" router>
+    <el-menu-item index="/members">Members</el-menu-item>
+    <el-menu-item index="/settings/fields">Fields</el-menu-item>
+    <el-menu-item v-if="isSuperAdmin" index="/settings/admins">Admins</el-menu-item>
     <div style="flex-grow: 1" />
-    <el-menu-item index="logout" @click="logout">Logout</el-menu-item>
+    <el-menu-item index="logout" @click.prevent="logout">Logout</el-menu-item>
   </el-menu>
   <router-view />
 </template>

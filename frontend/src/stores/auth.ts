@@ -11,7 +11,7 @@ export const useAuthStore = defineStore('auth', () => {
   async function login(username: string, password: string) {
     const result = await apiLogin(username, password)
     auth.value = result
-    // setAccessToken already called by apiLogin
+    setAccessToken(result.access_token)
   }
 
   async function logout() {
