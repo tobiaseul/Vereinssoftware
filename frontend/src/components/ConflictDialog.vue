@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { computed } from 'vue'
 import type { Member } from '../types'
 
 const props = defineProps<{
@@ -10,8 +11,8 @@ const props = defineProps<{
 
 const FIELDS: (keyof Member)[] = ['first_name', 'last_name', 'email', 'phone', 'membership_type', 'notes']
 
-const diffFields = FIELDS.filter(
-  (k) => props.myDraft[k] !== props.serverMember[k]
+const diffFields = computed(() =>
+  FIELDS.filter((k) => props.myDraft[k] !== props.serverMember[k])
 )
 
 function keepMine() {
