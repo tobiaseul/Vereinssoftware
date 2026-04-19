@@ -18,6 +18,9 @@ use tokio::sync::broadcast;
 use crate::{config::Config, state::AppState};
 use auth::handlers::{login, refresh, logout};
 use ws::handler::ws_handler;
+use finance::handlers::{
+    list_accounts, create_account, get_account, update_account, delete_account,
+};
 
 #[tokio::main]
 async fn main() {
@@ -57,6 +60,8 @@ async fn main() {
         .route("/api/v1/field-definitions/:id", put(field_definitions::handlers::update_field).delete(field_definitions::handlers::delete_field))
         .route("/api/v1/field-definitions/:id/options", post(field_definitions::handlers::add_option))
         .route("/api/v1/field-definitions/:id/options/:option_id", put(field_definitions::handlers::update_option).delete(field_definitions::handlers::delete_option))
+        .route("/api/v1/finance/accounts", get(list_accounts).post(create_account))
+        .route("/api/v1/finance/accounts/:id", get(get_account).put(update_account).delete(delete_account))
         .layer(cors)
         .with_state(state);
 

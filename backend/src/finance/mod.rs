@@ -3,6 +3,7 @@ pub mod transaction;
 pub mod reconciliation;
 pub mod finance_role;
 pub mod finance_auth;
+pub(crate) mod handlers;
 
 pub use bank_account::BankAccount;
 pub use transaction::Transaction;
