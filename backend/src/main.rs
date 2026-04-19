@@ -5,6 +5,7 @@ mod error;
 mod field_definitions;
 mod finance;
 mod members;
+mod services;
 mod state;
 mod storage;
 mod ws;
