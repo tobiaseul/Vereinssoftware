@@ -3,6 +3,7 @@ mod auth;
 mod config;
 mod error;
 mod field_definitions;
+mod finance;
 mod members;
 mod state;
 mod ws;
