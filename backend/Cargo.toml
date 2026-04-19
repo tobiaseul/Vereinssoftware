@@ -21,6 +21,7 @@ csv = "1"
 rand = "0.8"
 sha2 = "0.10"
 anyhow = "1"
+async-trait = "0.1"
 
 [dev-dependencies]
 axum-test = "14"

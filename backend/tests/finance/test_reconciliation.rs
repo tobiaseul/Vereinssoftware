@@ -50,7 +50,7 @@ async fn test_reconciliation_create() {
     assert_eq!(reconciliation.statement_date, NaiveDate::from_ymd_opt(2025, 4, 19).unwrap());
     assert_eq!(reconciliation.file_name, "test_statement.csv");
     assert_eq!(reconciliation.status, "pending");
-    assert_eq!(reconciliation.matched_transaction_ids, Vec::new());
+    assert_eq!(reconciliation.matched_transaction_ids, Vec::<uuid::Uuid>::new());
 
     // Clean up after test
     sqlx::query("DELETE FROM reconciliations WHERE file_name = 'test_statement.csv'")

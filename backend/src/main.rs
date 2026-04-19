@@ -6,6 +6,7 @@ mod field_definitions;
 mod finance;
 mod members;
 mod state;
+mod storage;
 mod ws;
 
 use axum::{routing::{delete, get, post, put}, Router};
