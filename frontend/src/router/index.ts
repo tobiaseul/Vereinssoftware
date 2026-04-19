@@ -37,6 +37,41 @@ const router = createRouter({
       component: () => import('../views/AdminsView.vue'),
       meta: { requiresAuth: true, requiresSuperAdmin: true },
     },
+    {
+      path: '/finances',
+      component: () => import('../views/finances/FinancesView.vue'),
+      meta: { requiresAuth: true },
+    },
+    {
+      path: '/finances/accounts',
+      component: () => import('../views/finances/AccountListView.vue'),
+      meta: { requiresAuth: true },
+    },
+    {
+      path: '/finances/accounts/:id',
+      component: () => import('../views/finances/AccountDetailView.vue'),
+      meta: { requiresAuth: true },
+    },
+    {
+      path: '/finances/accounts/:id/transactions',
+      component: () => import('../views/finances/TransactionListView.vue'),
+      meta: { requiresAuth: true },
+    },
+    {
+      path: '/finances/accounts/:id/transactions/new',
+      component: () => import('../views/finances/TransactionFormView.vue'),
+      meta: { requiresAuth: true },
+    },
+    {
+      path: '/finances/transactions/:id',
+      component: () => import('../views/finances/TransactionDetailView.vue'),
+      meta: { requiresAuth: true },
+    },
+    {
+      path: '/finances/accounts/:id/reconciliation',
+      component: () => import('../views/finances/ReconciliationView.vue'),
+      meta: { requiresAuth: true },
+    },
     { path: '/:pathMatch(.*)*', redirect: '/members' },
   ],
 })
