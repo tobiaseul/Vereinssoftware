@@ -164,4 +164,24 @@ impl Transaction {
 
         Ok(result.rows_affected() > 0)
     }
+
+    pub async fn set_receipt_reference(
+        &self,
+        pool: &PgPool,
+        receipt_reference: String,
+    ) -> Result<Transaction, AppError> {
+        let transaction: Transaction = sqlx::query_as(
+            "UPDATE transactions
+             SET receipt_reference = $2,
+                 updated_at = NOW()
+             WHERE id = $1
+             RETURNING id, bank_account_id, version, type, amount, date, member_id, category, reference, description, receipt_reference, reconciled, reconciliation_id, transfer_pair_id, deleted_at, created_at, updated_at"
+        )
+        .bind(self.id)
+        .bind(receipt_reference)
+        .fetch_one(pool)
+        .await?;
+
+        Ok(transaction)
+    }
 }

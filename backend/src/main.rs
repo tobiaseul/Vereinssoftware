@@ -21,7 +21,12 @@ use ws::handler::ws_handler;
 use finance::handlers::{
     list_accounts, create_account, get_account, update_account, delete_account,
     list_transactions, create_transaction, get_transaction, update_transaction, delete_transaction,
+    upload_receipt, download_receipt, start_reconciliation, confirm_reconciliation,
 };
+use std::sync::Arc;
+use storage::LocalFileStorage;
+use services::reconciliation::ManualReconciliationService;
+use std::path::PathBuf;
 
 #[tokio::main]
 async fn main() {
@@ -37,7 +42,21 @@ async fn main() {
     sqlx::migrate!("./migrations").run(&db).await.expect("migration failed");
 
     let (ws_tx, _) = broadcast::channel(100);
-    let state = AppState { db, config: config.clone(), ws_tx };
+
+    // Initialize file storage with receipts directory
+    let storage_path = PathBuf::from("./data");
+    let file_storage = Arc::new(LocalFileStorage::new(storage_path));
+
+    // Initialize reconciliation service
+    let reconciliation_service = Arc::new(ManualReconciliationService);
+
+    let state = AppState {
+        db,
+        config: config.clone(),
+        ws_tx,
+        file_storage,
+        reconciliation_service,
+    };
 
     let cors = CorsLayer::new()
         .allow_origin(state.config.frontend_url.parse::<axum::http::HeaderValue>().unwrap())
@@ -64,7 +83,11 @@ async fn main() {
         .route("/api/v1/finance/accounts", get(list_accounts).post(create_account))
         .route("/api/v1/finance/accounts/:id", get(get_account).put(update_account).delete(delete_account))
         .route("/api/v1/finance/accounts/:id/transactions", get(list_transactions).post(create_transaction))
+        .route("/api/v1/finance/accounts/:id/reconciliation", post(start_reconciliation))
+        .route("/api/v1/finance/accounts/:id/reconciliation/:rec-id", put(confirm_reconciliation))
         .route("/api/v1/finance/transactions/:id", get(get_transaction).put(update_transaction).delete(delete_transaction))
+        .route("/api/v1/finance/transactions/:id/receipt", post(upload_receipt))
+        .route("/api/v1/finance/transactions/:id/receipt/:ref", get(download_receipt))
         .layer(cors)
         .with_state(state);
 

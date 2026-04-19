@@ -5,7 +5,7 @@
 use axum::{
     extract::{Path, Query, State},
     http::StatusCode,
-    Json,
+    Json, body::Body,
 };
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -16,8 +16,10 @@ use super::{
     bank_account::{BankAccount, CreateBankAccountRequest, UpdateBankAccountRequest},
     finance_auth::{require_treasurer, require_finance_officer},
     transaction::Transaction,
+    reconciliation::Reconciliation,
 };
 use chrono::NaiveDate;
+use crate::services::reconciliation::StatementLine;
 
 /// Response struct for bank accounts
 #[derive(Debug, Serialize)]
@@ -391,4 +393,223 @@ pub async fn delete_transaction(
     }
 
     Ok(StatusCode::NO_CONTENT)
+}
+
+// Receipt upload/download and reconciliation request/response structs
+
+#[derive(Debug, Serialize)]
+pub struct ReconciliationResponse {
+    pub id: Uuid,
+    pub bank_account_id: Uuid,
+    pub statement_date: NaiveDate,
+    pub status: String,
+    pub matched_count: usize,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct StartReconciliationRequest {
+    pub statement_date: NaiveDate,
+    pub file_name: String,
+    pub statement_lines: Vec<StatementLineRequest>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct StatementLineRequest {
+    pub date: NaiveDate,
+    pub amount: String,
+    pub reference: String,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct ConfirmReconciliationRequest {
+    pub matched_transaction_ids: Vec<Uuid>,
+}
+
+// Receipt handlers
+
+/// POST /api/v1/finance/transactions/:id/receipt
+/// Upload a receipt file for a transaction (requires Finance Officer+ role)
+pub async fn upload_receipt(
+    State(state): State<AppState>,
+    claims: AuthClaims,
+    Path(transaction_id): Path<Uuid>,
+    body: Body,
+) -> Result<Json<TransactionResponse>, AppError> {
+    require_finance_officer(&state.db, claims.0.sub)
+        .await
+        .map_err(|_| AppError::Forbidden)?;
+
+    // Verify transaction exists
+    let transaction = Transaction::get_by_id(&state.db, transaction_id)
+        .await?
+        .ok_or_else(|| AppError::NotFound("Transaction not found".into()))?;
+
+    // Read request body
+    let bytes = axum::body::to_bytes(body, usize::MAX)
+        .await
+        .map_err(|e| AppError::Internal(anyhow::anyhow!("Failed to read request body: {}", e)))?;
+
+    // Validate file size (10MB max)
+    const MAX_FILE_SIZE: usize = 10 * 1024 * 1024;
+    if bytes.len() > MAX_FILE_SIZE {
+        return Err(AppError::Validation(vec![(
+            "file".into(),
+            "File size exceeds 10MB limit".into(),
+        )]));
+    }
+
+    // Use file storage from state to save the file
+    let file_storage = &state.file_storage;
+    let filename = format!("{}.receipt", transaction_id);
+    let receipt_reference = file_storage
+        .save(transaction_id, bytes.to_vec(), &filename)
+        .await
+        .map_err(|e| AppError::Internal(anyhow::anyhow!("Failed to save file: {}", e)))?;
+
+    // Update transaction with receipt reference
+    let updated = transaction
+        .set_receipt_reference(&state.db, receipt_reference)
+        .await?;
+
+    Ok(Json(updated.into()))
+}
+
+/// GET /api/v1/finance/transactions/:id/receipt/:ref
+/// Download a receipt file (returns raw bytes)
+pub async fn download_receipt(
+    State(state): State<AppState>,
+    Path((transaction_id, receipt_ref)): Path<(Uuid, String)>,
+) -> Result<Vec<u8>, AppError> {
+    // Verify transaction exists
+    let _transaction = Transaction::get_by_id(&state.db, transaction_id)
+        .await?
+        .ok_or_else(|| AppError::NotFound("Transaction not found".into()))?;
+
+    // Validate receipt_ref to prevent path traversal
+    if receipt_ref.contains("..") || receipt_ref.contains("/") {
+        return Err(AppError::Validation(vec![(
+            "receipt_ref".into(),
+            "Invalid receipt reference".into(),
+        )]));
+    }
+
+    let reference_path = format!("receipts/{}/{}", transaction_id, receipt_ref);
+
+    let file_storage = &state.file_storage;
+    file_storage
+        .get(&reference_path)
+        .await
+        .map_err(|e| AppError::NotFound(e.to_string()))
+}
+
+// Reconciliation handlers
+
+/// POST /api/v1/finance/accounts/:id/reconciliation
+/// Start a new reconciliation process (requires Treasurer role)
+pub async fn start_reconciliation(
+    State(state): State<AppState>,
+    claims: AuthClaims,
+    Path(account_id): Path<Uuid>,
+    Json(payload): Json<StartReconciliationRequest>,
+) -> Result<(StatusCode, Json<ReconciliationResponse>), AppError> {
+    require_treasurer(&state.db, claims.0.sub)
+        .await
+        .map_err(|_| AppError::Forbidden)?;
+
+    // Verify account exists
+    let _account = BankAccount::get_by_id(&state.db, account_id)
+        .await?
+        .ok_or_else(|| AppError::NotFound("Bank account not found".into()))?;
+
+    // Create reconciliation record
+    let reconciliation = Reconciliation::create(
+        &state.db,
+        account_id,
+        payload.statement_date,
+        payload.file_name,
+    )
+    .await?;
+
+    // Convert statement lines to StatementLine structs
+    let statement_lines: Vec<StatementLine> = payload
+        .statement_lines
+        .into_iter()
+        .map(|line| StatementLine {
+            date: line.date,
+            amount: line.amount,
+            reference: line.reference,
+        })
+        .collect();
+
+    // Call reconciliation service to match transactions
+    let recon_service = &state.reconciliation_service;
+    let matches = recon_service
+        .match_transactions(statement_lines, account_id, &state.db)
+        .await
+        .map_err(|e| AppError::Internal(anyhow::anyhow!("Reconciliation failed: {}", e)))?;
+
+    // Count matched transactions
+    let matched_count = matches.iter().filter(|(_, tx_id)| tx_id.is_some()).count();
+
+    let response = ReconciliationResponse {
+        id: reconciliation.id,
+        bank_account_id: reconciliation.bank_account_id,
+        statement_date: reconciliation.statement_date,
+        status: reconciliation.status,
+        matched_count,
+    };
+
+    Ok((StatusCode::CREATED, Json(response)))
+}
+
+/// PUT /api/v1/finance/accounts/:id/reconciliation/:rec-id
+/// Confirm a reconciliation and mark transactions as reconciled (requires Treasurer role)
+pub async fn confirm_reconciliation(
+    State(state): State<AppState>,
+    claims: AuthClaims,
+    Path((account_id, reconciliation_id)): Path<(Uuid, Uuid)>,
+    Json(payload): Json<ConfirmReconciliationRequest>,
+) -> Result<Json<ReconciliationResponse>, AppError> {
+    require_treasurer(&state.db, claims.0.sub)
+        .await
+        .map_err(|_| AppError::Forbidden)?;
+
+    // Verify account exists
+    let _account = BankAccount::get_by_id(&state.db, account_id)
+        .await?
+        .ok_or_else(|| AppError::NotFound("Bank account not found".into()))?;
+
+    // Verify reconciliation exists
+    let reconciliation = Reconciliation::get_by_id(&state.db, reconciliation_id)
+        .await?
+        .ok_or_else(|| AppError::NotFound("Reconciliation not found".into()))?;
+
+    // Verify reconciliation belongs to the account
+    if reconciliation.bank_account_id != account_id {
+        return Err(AppError::NotFound("Reconciliation not found".into()));
+    }
+
+    // Update reconciliation status and matched transaction IDs
+    let updated_reconciliation = Reconciliation::update_status(
+        &state.db,
+        reconciliation_id,
+        "Complete".to_string(),
+        payload.matched_transaction_ids.clone(),
+    )
+    .await?;
+
+    // Mark each matched transaction as reconciled
+    for transaction_id in payload.matched_transaction_ids {
+        Transaction::set_reconciliation_id(&state.db, transaction_id, reconciliation_id).await?;
+    }
+
+    let response = ReconciliationResponse {
+        id: updated_reconciliation.id,
+        bank_account_id: updated_reconciliation.bank_account_id,
+        statement_date: updated_reconciliation.statement_date,
+        status: updated_reconciliation.status,
+        matched_count: updated_reconciliation.matched_transaction_ids.len(),
+    };
+
+    Ok(Json(response))
 }
