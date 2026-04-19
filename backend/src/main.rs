@@ -20,6 +20,7 @@ use auth::handlers::{login, refresh, logout};
 use ws::handler::ws_handler;
 use finance::handlers::{
     list_accounts, create_account, get_account, update_account, delete_account,
+    list_transactions, create_transaction, get_transaction, update_transaction, delete_transaction,
 };
 
 #[tokio::main]
@@ -62,6 +63,8 @@ async fn main() {
         .route("/api/v1/field-definitions/:id/options/:option_id", put(field_definitions::handlers::update_option).delete(field_definitions::handlers::delete_option))
         .route("/api/v1/finance/accounts", get(list_accounts).post(create_account))
         .route("/api/v1/finance/accounts/:id", get(get_account).put(update_account).delete(delete_account))
+        .route("/api/v1/finance/accounts/:id/transactions", get(list_transactions).post(create_transaction))
+        .route("/api/v1/finance/transactions/:id", get(get_transaction).put(update_transaction).delete(delete_transaction))
         .layer(cors)
         .with_state(state);
 
