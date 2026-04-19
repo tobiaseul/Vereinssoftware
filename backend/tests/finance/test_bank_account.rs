@@ -1,5 +1,5 @@
 use sqlx::postgres::PgPoolOptions;
-use uuid::Uuid;
+use vereinssoftware_backend::finance::BankAccount;
 
 // Note: These tests require a test database. Configure via DATABASE_URL environment variable.
 // Run with: cargo test --test test_bank_account -- --ignored
@@ -20,22 +20,21 @@ async fn test_bank_account_create() {
         .await
         .ok();
 
-    let account = sqlx::query_as_unchecked!(
-        (Uuid, String, String, String),
-        r#"INSERT INTO bank_accounts (name, iban, bank_name)
-           VALUES ($1, $2, $3)
-           RETURNING id, name, iban, bank_name"#,
-        "Test Bank Account",
-        "DE89370400440532013000",
-        "Test Bank"
+    // Use the actual BankAccount::create method
+    let account = BankAccount::create(
+        &pool,
+        "Test Bank Account".to_string(),
+        "DE89370400440532013000".to_string(),
+        "Test Bank".to_string(),
     )
-    .fetch_one(&pool)
     .await
     .expect("Failed to create bank account");
 
-    assert_eq!(account.1, "Test Bank Account");
-    assert_eq!(account.2, "DE89370400440532013000");
-    assert_eq!(account.3, "Test Bank");
+    // Verify the created account has correct values
+    assert_eq!(account.name, "Test Bank Account");
+    assert_eq!(account.iban, "DE89370400440532013000");
+    assert_eq!(account.bank_name, "Test Bank");
+    assert!(account.deleted_at.is_none());
 
     // Clean up after test
     sqlx::query("DELETE FROM bank_accounts WHERE name = 'Test Bank Account'")
