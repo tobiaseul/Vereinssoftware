@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
+import { ElMessage } from 'element-plus'
 import { useFinanceStore } from '../../stores/finance'
 
 const router = useRouter()
@@ -13,7 +14,7 @@ const selectedType = ref('')
 const dateRange = ref('')
 
 const transactions = computed(() => {
-  return financeStore.transactions.filter(t => t.accountId === accountId.value)
+  return financeStore.transactions.filter(t => t.bank_account_id === accountId.value)
 })
 
 const filteredTransactions = computed(() => {

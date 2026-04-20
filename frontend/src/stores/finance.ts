@@ -100,6 +100,48 @@ export const useFinanceStore = defineStore('finance', () => {
     }
   }
 
+  async function updateTransaction(
+    id: string,
+    version: number,
+    amount: number,
+    date: string,
+    category: string,
+    reference: string,
+    description?: string
+  ): Promise<Transaction> {
+    try {
+      const transaction = await financeApi.updateTransaction(
+        id,
+        version,
+        amount,
+        date,
+        category,
+        reference,
+        description
+      )
+      const index = transactions.value.findIndex(t => t.id === id)
+      if (index !== -1) {
+        transactions.value[index] = transaction
+      }
+      ElMessage.success('Transaction updated successfully')
+      return transaction
+    } catch (err) {
+      error.value = err instanceof Error ? err.message : 'Failed to update transaction'
+      throw err
+    }
+  }
+
+  async function softDeleteTransaction(id: string): Promise<void> {
+    try {
+      await financeApi.softDeleteTransaction(id)
+      transactions.value = transactions.value.filter(t => t.id !== id)
+      ElMessage.success('Transaction deleted successfully')
+    } catch (err) {
+      error.value = err instanceof Error ? err.message : 'Failed to delete transaction'
+      throw err
+    }
+  }
+
   async function uploadReceipt(transactionId: string, file: File): Promise<void> {
     try {
       await financeApi.uploadReceipt(transactionId, file)
@@ -125,6 +167,8 @@ export const useFinanceStore = defineStore('finance', () => {
     createAccount,
     loadTransactions,
     createTransaction,
+    updateTransaction,
+    softDeleteTransaction,
     uploadReceipt,
   }
 })

@@ -15,7 +15,7 @@ const account = computed(() => {
 
 const recentTransactions = computed(() => {
   return financeStore.transactions
-    .filter(t => t.accountId === accountId.value)
+    .filter(t => t.bank_account_id === accountId.value)
     .slice(0, 5)
 })
 
@@ -39,8 +39,8 @@ function goToReconciliation() {
           <span class="value">{{ account.iban }}</span>
         </div>
         <div class="info-item">
-          <span class="label">Bank</span>
-          <span class="value">{{ account.bank }}</span>
+          <span class="label">Bank Name</span>
+          <span class="value">{{ account.bank_name }}</span>
         </div>
         <div class="info-item">
           <span class="label">Balance</span>
@@ -48,7 +48,7 @@ function goToReconciliation() {
         </div>
         <div class="info-item">
           <span class="label">Status</span>
-          <span class="value">{{ account.status }}</span>
+          <span class="value">{{ account.is_active ? 'Active' : 'Inactive' }}</span>
         </div>
       </div>
     </el-card>
