@@ -451,7 +451,7 @@ pub async fn upload_receipt(
 
     // Extract file from multipart form data
     let mut file_bytes: Option<Vec<u8>> = None;
-    let mut file_name: Option<String> = None;
+    let mut original_filename: Option<String> = None;
 
     while let Some(field) = multipart
         .next_field()
@@ -459,7 +459,7 @@ pub async fn upload_receipt(
         .map_err(|e| AppError::Internal(anyhow::anyhow!("Failed to read multipart field: {}", e)))?
     {
         if field.name() == Some("file") {
-            file_name = field.file_name().map(|s| s.to_string());
+            original_filename = field.file_name().map(|s| s.to_string());
             file_bytes = Some(
                 field
                     .bytes()
@@ -484,9 +484,20 @@ pub async fn upload_receipt(
         )]));
     }
 
+    // Generate filename with original extension
+    let filename = if let Some(orig) = original_filename {
+        // Extract file extension from original filename
+        if let Some(ext_pos) = orig.rfind('.') {
+            format!("{}{}", transaction_id, &orig[ext_pos..])
+        } else {
+            format!("{}.receipt", transaction_id)
+        }
+    } else {
+        format!("{}.receipt", transaction_id)
+    };
+
     // Use file storage from state to save the file
     let file_storage = &state.file_storage;
-    let filename = format!("{}.receipt", transaction_id);
     let receipt_reference = file_storage
         .save(transaction_id, bytes, &filename)
         .await
