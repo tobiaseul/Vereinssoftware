@@ -281,8 +281,8 @@ pub async fn create_transaction(
         return Err(AppError::Validation(vec![("amount".into(), "Amount must be greater than 0".into())]));
     }
 
-    // Validate date not in future
-    let today = chrono::Local::now().naive_local().date();
+    // Validate date not in future (using UTC to avoid timezone issues)
+    let today = chrono::Utc::now().naive_utc().date();
     if payload.date > today {
         return Err(AppError::Validation(vec![("date".into(), "Date cannot be in the future".into())]));
     }
@@ -348,8 +348,8 @@ pub async fn update_transaction(
         return Err(AppError::Validation(vec![("amount".into(), "Amount must be greater than 0".into())]));
     }
 
-    // Validate date not in future
-    let today = chrono::Local::now().naive_local().date();
+    // Validate date not in future (using UTC to avoid timezone issues)
+    let today = chrono::Utc::now().naive_utc().date();
     if payload.date > today {
         return Err(AppError::Validation(vec![("date".into(), "Date cannot be in the future".into())]));
     }
