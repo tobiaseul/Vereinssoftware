@@ -485,16 +485,19 @@ pub async fn upload_receipt(
     }
 
     // Generate filename with original extension
-    let filename = if let Some(orig) = original_filename {
+    let filename = if let Some(orig) = original_filename.as_ref() {
         // Extract file extension from original filename
-        if let Some(ext_pos) = orig.rfind('.') {
-            format!("{}{}", transaction_id, &orig[ext_pos..])
+        if let Some(dot_pos) = orig.rfind('.') {
+            let extension = &orig[dot_pos..]; // includes the dot
+            format!("{}{}", transaction_id, extension)
         } else {
-            format!("{}.receipt", transaction_id)
+            format!("{}.file", transaction_id)
         }
     } else {
-        format!("{}.receipt", transaction_id)
+        format!("{}.file", transaction_id)
     };
+
+    tracing::info!("Uploading receipt: transaction_id={}, filename={}, file_size={}", transaction_id, filename, bytes.len());
 
     // Use file storage from state to save the file
     let file_storage = &state.file_storage;
