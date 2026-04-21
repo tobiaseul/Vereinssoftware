@@ -182,9 +182,7 @@ export const financeApi = {
   uploadReceipt: (transactionId: string, file: File) => {
     const formData = new FormData()
     formData.append('file', file)
-    return client.post(`/api/v1/finance/transactions/${transactionId}/receipt`, formData, {
-      headers: { 'Content-Type': 'multipart/form-data' },
-    }).then(r => r.data)
+    return client.post(`/api/v1/finance/transactions/${transactionId}/receipt`, formData).then(r => r.data)
   },
 
   downloadReceipt: (transactionId: string, receiptRef: string) =>
