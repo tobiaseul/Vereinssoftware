@@ -458,8 +458,13 @@ pub async fn upload_receipt(
         .await
         .map_err(|e| AppError::Internal(anyhow::anyhow!("Failed to read multipart field: {}", e)))?
     {
-        if field.name() == Some("file") {
+        let field_name = field.name().map(|s| s.to_string());
+        tracing::debug!("Multipart field: {:?}", field_name);
+
+        if field_name.as_deref() == Some("file") {
             original_filename = field.file_name().map(|s| s.to_string());
+            tracing::debug!("Original filename from field: {:?}", original_filename);
+
             file_bytes = Some(
                 field
                     .bytes()
