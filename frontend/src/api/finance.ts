@@ -181,7 +181,9 @@ export const financeApi = {
   // Receipts
   uploadReceipt: (transactionId: string, file: File) => {
     const formData = new FormData()
-    formData.append('file', file)
+    // Explicitly append File with its name
+    formData.append('file', file, file.name)
+    console.log('Uploading receipt:', { fileName: file.name, fileSize: file.size, fileType: file.type })
     return client.post(`/api/v1/finance/transactions/${transactionId}/receipt`, formData).then(r => r.data)
   },
 
