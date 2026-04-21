@@ -3,9 +3,9 @@
 // It's only used by main.rs which has access to auth and state modules.
 
 use axum::{
-    extract::{Path, Query, State},
+    extract::{Path, Query, State, Multipart},
     http::StatusCode,
-    Json, body::Body,
+    Json,
 };
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -438,7 +438,7 @@ pub async fn upload_receipt(
     State(state): State<AppState>,
     claims: AuthClaims,
     Path(transaction_id): Path<Uuid>,
-    body: Body,
+    mut multipart: Multipart,
 ) -> Result<Json<TransactionResponse>, AppError> {
     require_finance_officer(&state.db, claims.0.sub)
         .await
@@ -449,10 +449,31 @@ pub async fn upload_receipt(
         .await?
         .ok_or_else(|| AppError::NotFound("Transaction not found".into()))?;
 
-    // Read request body
-    let bytes = axum::body::to_bytes(body, usize::MAX)
+    // Extract file from multipart form data
+    let mut file_bytes: Option<Vec<u8>> = None;
+    let mut file_name: Option<String> = None;
+
+    while let Some(field) = multipart
+        .next_field()
         .await
-        .map_err(|e| AppError::Internal(anyhow::anyhow!("Failed to read request body: {}", e)))?;
+        .map_err(|e| AppError::Internal(anyhow::anyhow!("Failed to read multipart field: {}", e)))?
+    {
+        if field.name() == Some("file") {
+            file_name = field.file_name().map(|s| s.to_string());
+            file_bytes = Some(
+                field
+                    .bytes()
+                    .await
+                    .map_err(|e| AppError::Internal(anyhow::anyhow!("Failed to read file: {}", e)))?
+                    .to_vec(),
+            );
+            break;
+        }
+    }
+
+    let bytes = file_bytes.ok_or_else(|| {
+        AppError::Validation(vec![("file".into(), "No file provided".into())])
+    })?;
 
     // Validate file size (10MB max)
     const MAX_FILE_SIZE: usize = 10 * 1024 * 1024;
@@ -467,7 +488,7 @@ pub async fn upload_receipt(
     let file_storage = &state.file_storage;
     let filename = format!("{}.receipt", transaction_id);
     let receipt_reference = file_storage
-        .save(transaction_id, bytes.to_vec(), &filename)
+        .save(transaction_id, bytes, &filename)
         .await
         .map_err(|e| AppError::Internal(anyhow::anyhow!("Failed to save file: {}", e)))?;
 
