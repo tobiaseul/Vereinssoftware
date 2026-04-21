@@ -9,7 +9,7 @@ import { getMembers } from '../../api/members'
 import type { Member } from '../../types'
 
 interface Props {
-  accountId: string
+  accountId?: string
   transaction?: Transaction
   isEditMode?: boolean
 }
@@ -23,6 +23,7 @@ const financeStore = useFinanceStore()
 
 // Form state
 const form = ref({
+  accountId: '',
   type: '',
   amount: undefined as number | undefined,
   date: '',
@@ -35,18 +36,36 @@ const form = ref({
 const selectedFile = ref<File | null>(null)
 const isLoading = ref(false)
 
+// Query for accounts
+const { data: accountsQuery } = useQuery({
+  queryKey: ['accounts'],
+  queryFn: () => financeApi.listAccounts(),
+})
+
 // Query for members
 const { data: membersQuery } = useQuery({
   queryKey: ['members'],
   queryFn: () => getMembers(),
 })
 
+// Query for categories
+const { data: categoriesQuery } = useQuery({
+  queryKey: ['categories'],
+  queryFn: () => financeApi.listCategories(),
+})
+
+const accounts = computed(() => accountsQuery.value ?? [])
 const members = computed(() => membersQuery.value ?? [])
+const categories = computed(() => categoriesQuery.value ?? [])
 
 // Initialize form with transaction data if in edit mode
 onMounted(() => {
+  if (props.accountId) {
+    form.value.accountId = props.accountId
+  }
   if (props.transaction && props.isEditMode) {
     form.value = {
+      accountId: props.transaction.bank_account_id,
       type: props.transaction.type,
       amount: props.transaction.amount,
       date: props.transaction.date,
@@ -82,7 +101,7 @@ function handleFileSelect(file: File) {
 
 async function handleSubmit() {
   // Validate required fields
-  if (!form.value.type || form.value.amount === undefined || !form.value.date || !form.value.category || !form.value.reference) {
+  if (!form.value.accountId || !form.value.type || form.value.amount === undefined || !form.value.date || !form.value.category || !form.value.reference) {
     ElMessage.error('Please fill in all required fields')
     return
   }
@@ -105,7 +124,7 @@ async function handleSubmit() {
     } else {
       // Create new transaction
       transaction = await financeStore.createTransaction(
-        props.accountId,
+        form.value.accountId,
         form.value.type,
         form.value.amount,
         form.value.date,
@@ -149,6 +168,12 @@ const memberOptions = computed(() =>
 <template>
   <el-form label-position="top" class="transaction-form">
     <div class="form-grid">
+      <el-form-item label="Account *" required>
+        <el-select v-model="form.accountId" placeholder="Select account">
+          <el-option v-for="account in accounts" :key="account.id" :label="account.name" :value="account.id" />
+        </el-select>
+      </el-form-item>
+
       <el-form-item label="Type *" required>
         <el-select v-model="form.type" placeholder="Select transaction type">
           <el-option label="Income" value="Income" />
@@ -167,13 +192,15 @@ const memberOptions = computed(() =>
       </el-form-item>
 
       <el-form-item label="Member (optional)">
-        <el-select v-model="form.memberId" placeholder="Select member" clearable filterable>
+        <el-select v-model="form.memberId" placeholder="Search members..." clearable filterable>
           <el-option v-for="option in memberOptions" :key="option.value" :label="option.label" :value="option.value" />
         </el-select>
       </el-form-item>
 
       <el-form-item label="Category *" required>
-        <el-input v-model="form.category" placeholder="e.g., Membership Fees, Travel, Supplies" />
+        <el-select v-model="form.category" placeholder="Select category">
+          <el-option v-for="cat in categories" :key="cat.id" :label="cat.name" :value="cat.name" />
+        </el-select>
       </el-form-item>
 
       <el-form-item label="Reference *" required>

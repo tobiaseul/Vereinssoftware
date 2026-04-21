@@ -28,7 +28,7 @@ pub struct AccountResponse {
     pub name: String,
     pub iban: String,
     pub bank_name: String,
-    pub balance: String,
+    pub balance: f64,
     pub is_active: bool,
 }
 
@@ -39,7 +39,7 @@ impl From<BankAccount> for AccountResponse {
             name: account.name,
             iban: account.iban,
             bank_name: account.bank_name,
-            balance: account.balance,
+            balance: account.balance.to_string().parse().unwrap_or(0.0),
             is_active: account.is_active,
         }
     }
@@ -58,7 +58,7 @@ pub struct TransactionResponse {
     pub id: Uuid,
     pub bank_account_id: Uuid,
     pub r#type: String,
-    pub amount: String,
+    pub amount: f64,
     pub date: NaiveDate,
     pub member_id: Option<Uuid>,
     pub category: String,
@@ -75,7 +75,7 @@ impl From<Transaction> for TransactionResponse {
             id: tx.id,
             bank_account_id: tx.bank_account_id,
             r#type: tx.r#type,
-            amount: tx.amount,
+            amount: tx.amount.to_string().parse().unwrap_or(0.0),
             date: tx.date,
             member_id: tx.member_id,
             category: tx.category,
@@ -287,11 +287,16 @@ pub async fn create_transaction(
         return Err(AppError::Validation(vec![("date".into(), "Date cannot be in the future".into())]));
     }
 
+    let amount_val: f64 = payload
+        .amount
+        .parse()
+        .map_err(|_| AppError::Validation(vec![("amount".into(), "Invalid amount format".into())]))?;
+
     let transaction = Transaction::create(
         &state.db,
         account_id,
         payload.r#type,
-        payload.amount,
+        amount_val,
         payload.date,
         payload.member_id,
         payload.category,
@@ -353,7 +358,7 @@ pub async fn update_transaction(
         .update(
             &state.db,
             payload.version,
-            payload.amount,
+            amount_val,
             payload.date,
             payload.category,
             payload.reference,
@@ -612,4 +617,180 @@ pub async fn confirm_reconciliation(
     };
 
     Ok(Json(response))
+}
+
+/// POST /api/v1/finance/admins/:admin-id/roles
+/// Assign a finance role to an admin (requires SuperAdmin)
+pub async fn assign_finance_role(
+    State(state): State<AppState>,
+    claims: AuthClaims,
+    Path(admin_id): Path<Uuid>,
+    Json(payload): Json<AssignFinanceRoleRequest>,
+) -> Result<Json<super::AdminFinanceRole>, AppError> {
+    use crate::auth::tokens::AdminRole;
+
+    // Only SuperAdmin can assign finance roles
+    if claims.0.role != AdminRole::SuperAdmin {
+        return Err(AppError::Forbidden);
+    }
+
+    // Get the finance role by name
+    let finance_role: super::FinanceRole = sqlx::query_as(
+        "SELECT id, name FROM finance_roles WHERE name = $1"
+    )
+    .bind(&payload.role_name)
+    .fetch_optional(&state.db)
+    .await?
+    .ok_or_else(|| AppError::NotFound("Finance role not found".into()))?;
+
+    // Assign the role
+    let role = super::AdminFinanceRole::assign(&state.db, admin_id, finance_role.id).await?;
+    Ok(Json(role))
+}
+
+/// DELETE /api/v1/finance/admins/:admin-id/roles/:role-name
+/// Remove a finance role from an admin (requires SuperAdmin)
+pub async fn remove_finance_role(
+    State(state): State<AppState>,
+    claims: AuthClaims,
+    Path((admin_id, role_name)): Path<(Uuid, String)>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    use crate::auth::tokens::AdminRole;
+
+    // Only SuperAdmin can remove finance roles
+    if claims.0.role != AdminRole::SuperAdmin {
+        return Err(AppError::Forbidden);
+    }
+
+    // Get the finance role by name
+    let finance_role: super::FinanceRole = sqlx::query_as(
+        "SELECT id, name FROM finance_roles WHERE name = $1"
+    )
+    .bind(&role_name)
+    .fetch_optional(&state.db)
+    .await?
+    .ok_or_else(|| AppError::NotFound("Finance role not found".into()))?;
+
+    // Remove the role
+    let removed = super::AdminFinanceRole::remove(&state.db, admin_id, finance_role.id).await?;
+    if !removed {
+        return Err(AppError::NotFound("Admin finance role not found".into()));
+    }
+
+    Ok(Json(serde_json::json!({"ok": true})))
+}
+
+/// GET /api/v1/finance/admins/:admin-id/roles
+/// List finance roles for an admin
+pub async fn list_admin_finance_roles(
+    State(state): State<AppState>,
+    _: AuthClaims,
+    Path(admin_id): Path<Uuid>,
+) -> Result<Json<Vec<super::FinanceRole>>, AppError> {
+    let roles = super::AdminFinanceRole::list_by_admin(&state.db, admin_id).await?;
+    Ok(Json(roles))
+}
+
+/// GET /api/v1/finance/categories
+/// List all transaction categories
+pub async fn list_categories(
+    State(state): State<AppState>,
+    _: AuthClaims,
+) -> Result<Json<Vec<super::TransactionCategory>>, AppError> {
+    let categories = super::TransactionCategory::list(&state.db).await?;
+    Ok(Json(categories))
+}
+
+/// POST /api/v1/finance/categories
+/// Create a new transaction category (SuperAdmin only)
+pub async fn create_category(
+    State(state): State<AppState>,
+    claims: AuthClaims,
+    Json(payload): Json<CreateCategoryRequest>,
+) -> Result<Json<super::TransactionCategory>, AppError> {
+    use crate::auth::tokens::AdminRole;
+
+    if claims.0.role != AdminRole::SuperAdmin {
+        return Err(AppError::Forbidden);
+    }
+
+    if payload.name.trim().is_empty() {
+        return Err(AppError::Validation(vec![("name".into(), "Category name cannot be empty".into())]));
+    }
+
+    let category = super::TransactionCategory::create(&state.db, payload.name).await?;
+    Ok(Json(category))
+}
+
+/// DELETE /api/v1/finance/categories/:id
+/// Delete a transaction category (SuperAdmin only)
+pub async fn delete_category(
+    State(state): State<AppState>,
+    claims: AuthClaims,
+    Path(id): Path<Uuid>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    use crate::auth::tokens::AdminRole;
+
+    if claims.0.role != AdminRole::SuperAdmin {
+        return Err(AppError::Forbidden);
+    }
+
+    let deleted = super::TransactionCategory::delete(&state.db, id).await?;
+    if !deleted {
+        return Err(AppError::NotFound("Category not found".into()));
+    }
+
+    Ok(Json(serde_json::json!({"ok": true})))
+}
+
+#[derive(serde::Deserialize)]
+pub struct CreateCategoryRequest {
+    pub name: String,
+}
+
+/// Query parameters for list all transactions (global)
+#[derive(Debug, Deserialize)]
+pub struct GlobalTransactionsQuery {
+    #[serde(default = "default_limit")]
+    pub limit: i64,
+    #[serde(default)]
+    pub offset: i64,
+    pub account_id: Option<Uuid>,
+    pub member_id: Option<Uuid>,
+    #[serde(rename = "type")]
+    pub tx_type: Option<String>,
+    pub category: Option<String>,
+    pub date_from: Option<NaiveDate>,
+    pub date_to: Option<NaiveDate>,
+    pub reconciled: Option<bool>,
+}
+
+/// GET /api/v1/finance/transactions
+/// List all transactions across all accounts with optional filters
+pub async fn list_all_transactions(
+    State(state): State<AppState>,
+    _: AuthClaims,
+    Query(query): Query<GlobalTransactionsQuery>,
+) -> Result<Json<Vec<TransactionResponse>>, AppError> {
+    let transactions = Transaction::list_all(
+        &state.db,
+        query.limit,
+        query.offset,
+        query.account_id,
+        query.member_id,
+        query.tx_type,
+        query.category,
+        query.date_from,
+        query.date_to,
+        query.reconciled,
+    )
+    .await?;
+
+    let response: Vec<TransactionResponse> = transactions.into_iter().map(|tx| tx.into()).collect();
+    Ok(Json(response))
+}
+
+#[derive(serde::Deserialize)]
+pub struct AssignFinanceRoleRequest {
+    pub role_name: String,
 }

@@ -12,11 +12,20 @@ pub struct BankAccount {
     pub name: String,
     pub iban: String,
     pub bank_name: String,
-    pub balance: String,
+    #[sqlx(default)]
+    #[serde(serialize_with = "serialize_decimal")]
+    pub balance: sqlx::types::BigDecimal,
     pub is_active: bool,
     pub deleted_at: Option<DateTime<Utc>>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
+}
+
+fn serialize_decimal<S>(value: &sqlx::types::BigDecimal, serializer: S) -> Result<S::Ok, S::Error>
+where
+    S: serde::Serializer,
+{
+    serializer.serialize_f64(value.to_string().parse().unwrap_or(0.0))
 }
 
 #[derive(Debug, Deserialize)]

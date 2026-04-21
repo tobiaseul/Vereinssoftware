@@ -31,9 +31,7 @@ CREATE TABLE transactions (
   transfer_pair_id UUID,
   deleted_at TIMESTAMPTZ,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-  CONSTRAINT fk_transactions_reconciliation FOREIGN KEY (reconciliation_id) REFERENCES reconciliations(id),
-  CONSTRAINT fk_transactions_transfer_pair FOREIGN KEY (transfer_pair_id) REFERENCES transactions(id)
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
 CREATE INDEX idx_transactions_bank_account ON transactions(bank_account_id);
@@ -70,3 +68,7 @@ CREATE TABLE admin_finance_roles (
 );
 
 CREATE INDEX idx_admin_finance_roles_admin ON admin_finance_roles(admin_id);
+
+-- Add foreign keys after all tables are created
+ALTER TABLE transactions ADD CONSTRAINT fk_transactions_reconciliation FOREIGN KEY (reconciliation_id) REFERENCES reconciliations(id);
+ALTER TABLE transactions ADD CONSTRAINT fk_transactions_transfer_pair FOREIGN KEY (transfer_pair_id) REFERENCES transactions(id);

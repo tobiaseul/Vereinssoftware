@@ -82,7 +82,8 @@ function doExport() {
       :row-data="members ?? []"
       :column-defs="columnDefs"
       :default-col-def="defaultColDef"
-      row-selection="single"
+      theme="legacy"
+      :row-selection="{ mode: 'singleRow' }"
       @row-clicked="onRowClicked"
     />
   </div>

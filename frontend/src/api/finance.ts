@@ -7,7 +7,7 @@ export interface BankAccount {
   name: string
   iban: string
   bank_name: string
-  balance: number
+  balance: number  // f64 from backend, serialized as number
   is_active: boolean
 }
 
@@ -61,17 +61,17 @@ interface UpdateAccountRequest {
 
 interface CreateTransactionRequest {
   type: string
-  amount: number
+  amount: string
   date: string
   category: string
   reference: string
-  member_id?: string
+  member_id?: string | null
   description?: string
 }
 
 interface UpdateTransactionRequest {
   version: number
-  amount: number
+  amount: string
   date: string
   category: string
   reference: string
@@ -88,34 +88,40 @@ interface ConfirmReconciliationRequest {
   matched_transaction_ids: string[]
 }
 
+export interface TransactionCategory {
+  id: string
+  name: string
+  created_at: string
+}
+
 // Finance API client
 export const financeApi = {
   // Bank Accounts
   listAccounts: () =>
-    client.get<BankAccount[]>('/api/v1/bank-accounts').then(r => r.data),
+    client.get<BankAccount[]>('/api/v1/finance/accounts').then(r => r.data),
 
   createAccount: (name: string, iban: string, bank_name: string) =>
-    client.post<BankAccount>('/api/v1/bank-accounts', {
+    client.post<BankAccount>('/api/v1/finance/accounts', {
       name,
       iban,
       bank_name,
     } as CreateAccountRequest).then(r => r.data),
 
   getAccount: (id: string) =>
-    client.get<BankAccount>(`/api/v1/bank-accounts/${id}`).then(r => r.data),
+    client.get<BankAccount>(`/api/v1/finance/accounts/${id}`).then(r => r.data),
 
   updateAccount: (id: string, name: string, bank_name: string, is_active: boolean) =>
-    client.put<BankAccount>(`/api/v1/bank-accounts/${id}`, {
+    client.put<BankAccount>(`/api/v1/finance/accounts/${id}`, {
       name,
       bank_name,
       is_active,
     } as UpdateAccountRequest).then(r => r.data),
 
   softDeleteAccount: (id: string) =>
-    client.delete(`/api/v1/bank-accounts/${id}`).then(r => r.data),
+    client.delete(`/api/v1/finance/accounts/${id}`).then(r => r.data),
 
   hardDeleteAccount: (id: string) =>
-    client.delete(`/api/v1/bank-accounts/${id}`, { params: { hard: true } }).then(r => r.data),
+    client.delete(`/api/v1/finance/accounts/${id}`, { params: { hard: true } }).then(r => r.data),
 
   // Transactions
   listTransactions: (accountId: string, limit: number, offset: number, filters?: TransactionFilters) => {
@@ -125,27 +131,41 @@ export const financeApi = {
     if (filters?.category) params.append('category', filters.category)
     if (filters?.type) params.append('type', filters.type)
     if (filters?.reconciled !== undefined) params.append('reconciled', filters.reconciled.toString())
-    return client.get<Transaction[]>(`/api/v1/bank-accounts/${accountId}/transactions`, { params }).then(r => r.data)
+    return client.get<Transaction[]>(`/api/v1/finance/accounts/${accountId}/transactions`, { params }).then(r => r.data)
+  },
+
+  listAllTransactions: (limit: number, offset: number, filters?: Record<string, any>) => {
+    const params = new URLSearchParams()
+    params.append('limit', limit.toString())
+    params.append('offset', offset.toString())
+    if (filters) {
+      Object.entries(filters).forEach(([key, value]) => {
+        if (value !== undefined && value !== null) {
+          params.append(key, String(value))
+        }
+      })
+    }
+    return client.get<Transaction[]>('/api/v1/finance/transactions', { params }).then(r => r.data)
   },
 
   createTransaction: (accountId: string, type: string, amount: number, date: string, category: string, reference: string, memberId?: string, description?: string) =>
-    client.post<Transaction>(`/api/v1/bank-accounts/${accountId}/transactions`, {
+    client.post<Transaction>(`/api/v1/finance/accounts/${accountId}/transactions`, {
       type,
-      amount,
+      amount: amount.toString(),  // Convert to string
       date,
       category,
       reference,
-      member_id: memberId,
+      member_id: memberId || null,  // Convert to null if not provided
       description,
     } as CreateTransactionRequest).then(r => r.data),
 
   getTransaction: (id: string) =>
-    client.get<Transaction>(`/api/v1/transactions/${id}`).then(r => r.data),
+    client.get<Transaction>(`/api/v1/finance/transactions/${id}`).then(r => r.data),
 
   updateTransaction: (id: string, version: number, amount: number, date: string, category: string, reference: string, description?: string) =>
-    client.put<Transaction>(`/api/v1/transactions/${id}`, {
+    client.put<Transaction>(`/api/v1/finance/transactions/${id}`, {
       version,
-      amount,
+      amount: amount.toString(),  // Convert to string
       date,
       category,
       reference,
@@ -153,33 +173,43 @@ export const financeApi = {
     } as UpdateTransactionRequest).then(r => r.data),
 
   softDeleteTransaction: (id: string) =>
-    client.delete(`/api/v1/transactions/${id}`).then(r => r.data),
+    client.delete(`/api/v1/finance/transactions/${id}`).then(r => r.data),
 
   hardDeleteTransaction: (id: string) =>
-    client.delete(`/api/v1/transactions/${id}`, { params: { hard: true } }).then(r => r.data),
+    client.delete(`/api/v1/finance/transactions/${id}`, { params: { hard: true } }).then(r => r.data),
 
   // Receipts
   uploadReceipt: (transactionId: string, file: File) => {
     const formData = new FormData()
     formData.append('file', file)
-    return client.post(`/api/v1/transactions/${transactionId}/receipt`, formData, {
+    return client.post(`/api/v1/finance/transactions/${transactionId}/receipt`, formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
     }).then(r => r.data)
   },
 
   downloadReceipt: (transactionId: string, receiptRef: string) =>
-    client.get(`/api/v1/transactions/${transactionId}/receipt/${receiptRef}`, { responseType: 'blob' }).then(r => r.data),
+    client.get(`/api/v1/finance/transactions/${transactionId}/receipt/${receiptRef}`, { responseType: 'blob' }).then(r => r.data),
 
   // Reconciliation
   startReconciliation: (accountId: string, statementDate: string, fileName: string, statementLines: StatementLine[]) =>
-    client.post<Reconciliation>(`/api/v1/bank-accounts/${accountId}/reconciliation/start`, {
+    client.post<Reconciliation>(`/api/v1/finance/accounts/${accountId}/reconciliation/start`, {
       statement_date: statementDate,
       file_name: fileName,
       statement_lines: statementLines,
     } as StartReconciliationRequest).then(r => r.data),
 
   confirmReconciliation: (accountId: string, reconciliationId: string, matchedTransactionIds: string[]) =>
-    client.post(`/api/v1/bank-accounts/${accountId}/reconciliation/${reconciliationId}/confirm`, {
+    client.post(`/api/v1/finance/accounts/${accountId}/reconciliation/${reconciliationId}/confirm`, {
       matched_transaction_ids: matchedTransactionIds,
     } as ConfirmReconciliationRequest).then(r => r.data),
+
+  // Categories
+  listCategories: () =>
+    client.get<TransactionCategory[]>('/api/v1/finance/categories').then(r => r.data),
+
+  createCategory: (name: string) =>
+    client.post<TransactionCategory>('/api/v1/finance/categories', { name }).then(r => r.data),
+
+  deleteCategory: (id: string) =>
+    client.delete(`/api/v1/finance/categories/${id}`).then(r => r.data),
 }

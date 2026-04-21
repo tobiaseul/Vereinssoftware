@@ -3,8 +3,11 @@ import { createPinia } from 'pinia'
 import ElementPlus from 'element-plus'
 import 'element-plus/dist/index.css'
 import { VueQueryPlugin } from '@tanstack/vue-query'
+import { ModuleRegistry, AllCommunityModule } from 'ag-grid-community'
 import router from './router'
 import App from './App.vue'
+
+ModuleRegistry.registerModules([AllCommunityModule])
 
 const app = createApp(App)
 app.use(createPinia())
