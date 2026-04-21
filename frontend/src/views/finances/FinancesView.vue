@@ -10,82 +10,51 @@ onMounted(() => {
   financeStore.loadAccounts()
 })
 
-const totalBalance = computed(() => {
-  return financeStore.accounts.reduce((sum, account) => sum + account.balance, 0)
-})
-
 const accounts = computed(() => financeStore.accounts)
 
-function goToNewTransaction() {
-  if (accounts.value.length > 0) {
-    router.push(`/finances/accounts/${accounts.value[0].id}/transactions/new`)
-  }
+function handleRowClick(row: any) {
+  router.push(`/finances/accounts/${row.id}`)
 }
 
-function goToAccounts() {
-  router.push('/finances/accounts')
+function goToNewAccount() {
+  router.push('/finances/accounts/new')
 }
 </script>
 
 <template>
-  <div class="finances-dashboard">
-    <h1>Finances Dashboard</h1>
-
-    <div class="summary">
-      <el-card>
-        <div class="summary-item">
-          <span class="label">Total Balance</span>
-          <span class="value">{{ totalBalance.toFixed(2) }} EUR</span>
-        </div>
-      </el-card>
-
-      <el-card>
-        <div class="summary-item">
-          <span class="label">Accounts</span>
-          <span class="value">{{ accounts.length }}</span>
-        </div>
-      </el-card>
-    </div>
+  <div class="bank-accounts">
+    <h1>Bank Accounts</h1>
 
     <div class="actions">
-      <el-button type="primary" @click="goToNewTransaction">New Transaction</el-button>
-      <el-button @click="goToAccounts">View Accounts</el-button>
+      <el-button type="primary" @click="goToNewAccount">New Account</el-button>
     </div>
+
+    <el-table :data="accounts" @row-click="handleRowClick">
+      <el-table-column prop="name" label="Name" />
+      <el-table-column prop="iban" label="IBAN" />
+      <el-table-column prop="bank_name" label="Bank" />
+      <el-table-column prop="balance" label="Balance">
+        <template #default="{ row }">
+          {{ row.balance.toFixed(2) }} EUR
+        </template>
+      </el-table-column>
+      <el-table-column prop="is_active" label="Status">
+        <template #default="{ row }">
+          <el-tag :type="row.is_active ? 'success' : 'info'">
+            {{ row.is_active ? 'Active' : 'Inactive' }}
+          </el-tag>
+        </template>
+      </el-table-column>
+    </el-table>
   </div>
 </template>
 
 <style scoped>
-.finances-dashboard {
+.bank-accounts {
   padding: 20px;
 }
 
-.summary {
-  display: flex;
-  gap: 20px;
-  margin: 20px 0;
-}
-
-.summary-item {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-
-.label {
-  font-size: 12px;
-  color: #666;
-  text-transform: uppercase;
-}
-
-.value {
-  font-size: 24px;
-  font-weight: bold;
-  color: #333;
-}
-
 .actions {
-  margin-top: 20px;
-  display: flex;
-  gap: 10px;
+  margin: 20px 0;
 }
 </style>

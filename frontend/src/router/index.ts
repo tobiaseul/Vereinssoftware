@@ -28,9 +28,21 @@ const router = createRouter({
       meta: { requiresAuth: true },
     },
     {
-      path: '/settings/fields',
-      component: () => import('../views/FieldsView.vue'),
-      meta: { requiresAuth: true },
+      path: '/settings/configuration',
+      component: () => import('../views/ConfigurationView.vue'),
+      meta: { requiresAuth: true, requiresSuperAdmin: true },
+      children: [
+        {
+          path: 'fields',
+          component: () => import('../views/FieldsView.vue'),
+          meta: { requiresAuth: true, requiresSuperAdmin: true },
+        },
+        {
+          path: 'categories',
+          component: () => import('../views/finances/CategorySettingsView.vue'),
+          meta: { requiresAuth: true, requiresSuperAdmin: true },
+        },
+      ],
     },
     {
       path: '/settings/admins',
@@ -43,8 +55,23 @@ const router = createRouter({
       meta: { requiresAuth: true },
     },
     {
+      path: '/finances/transactions',
+      component: () => import('../views/finances/GlobalTransactionListView.vue'),
+      meta: { requiresAuth: true },
+    },
+    {
+      path: '/finances/transactions/new',
+      component: () => import('../views/finances/TransactionFormView.vue'),
+      meta: { requiresAuth: true },
+    },
+    {
       path: '/finances/accounts',
       component: () => import('../views/finances/AccountListView.vue'),
+      meta: { requiresAuth: true },
+    },
+    {
+      path: '/finances/accounts/new',
+      component: () => import('../views/finances/AccountFormView.vue'),
       meta: { requiresAuth: true },
     },
     {

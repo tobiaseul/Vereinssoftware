@@ -22,6 +22,8 @@ use finance::handlers::{
     list_accounts, create_account, get_account, update_account, delete_account,
     list_transactions, create_transaction, get_transaction, update_transaction, delete_transaction,
     upload_receipt, download_receipt, start_reconciliation, confirm_reconciliation,
+    assign_finance_role, remove_finance_role, list_admin_finance_roles,
+    list_categories, create_category, delete_category, list_all_transactions,
 };
 use std::sync::Arc;
 use storage::LocalFileStorage;
@@ -85,9 +87,14 @@ async fn main() {
         .route("/api/v1/finance/accounts/:id/transactions", get(list_transactions).post(create_transaction))
         .route("/api/v1/finance/accounts/:id/reconciliation", post(start_reconciliation))
         .route("/api/v1/finance/accounts/:id/reconciliation/:rec-id", put(confirm_reconciliation))
+        .route("/api/v1/finance/transactions", get(list_all_transactions))
         .route("/api/v1/finance/transactions/:id", get(get_transaction).put(update_transaction).delete(delete_transaction))
         .route("/api/v1/finance/transactions/:id/receipt", post(upload_receipt))
         .route("/api/v1/finance/transactions/:id/receipt/:ref", get(download_receipt))
+        .route("/api/v1/finance/admins/:id/roles", get(list_admin_finance_roles).post(assign_finance_role))
+        .route("/api/v1/finance/admins/:id/roles/:role", delete(remove_finance_role))
+        .route("/api/v1/finance/categories", get(list_categories).post(create_category))
+        .route("/api/v1/finance/categories/:id", delete(delete_category))
         .layer(cors)
         .with_state(state);
 

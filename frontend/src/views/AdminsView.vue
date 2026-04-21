@@ -3,6 +3,7 @@ import { ref } from 'vue'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/vue-query'
 import { getAdmins, createAdmin, deleteAdmin } from '../api/admins'
 import { useAuthStore } from '../stores/auth'
+import FinanceRolesCell from '../components/FinanceRolesCell.vue'
 import type { AdminRole, Admin } from '../types'
 
 const auth = useAuthStore()
@@ -42,7 +43,7 @@ function confirmRemove(admin: Admin) {
 </script>
 
 <template>
-  <div style="padding:24px;max-width:600px;margin:0 auto">
+  <div style="padding:24px;max-width:900px;margin:0 auto">
     <h1 style="margin-bottom:16px">Admin Users</h1>
     <el-alert v-if="error" :title="error" type="error" :closable="false" style="margin-bottom:12px" />
 
@@ -53,24 +54,29 @@ function confirmRemove(admin: Admin) {
         <el-option label="Admin" value="Admin" />
         <el-option label="SuperAdmin" value="SuperAdmin" />
       </el-select>
-      <el-button type="primary" :disabled="!form.username || !form.password || add.isPending.value"
+      <el-button type="primary" :disabled="!form.username || !form.password || add.isPending"
         @click="add.mutate()">
         Add Admin
       </el-button>
     </div>
 
     <el-table :data="admins ?? []" style="width:100%">
-      <el-table-column label="Username">
+      <el-table-column label="Username" width="150">
         <template #default="{ row }">
           {{ row.username }}
           <el-tag v-if="row.id === auth.auth?.admin_id" size="small" style="margin-left:6px">you</el-tag>
         </template>
       </el-table-column>
-      <el-table-column prop="role" label="Role" />
+      <el-table-column prop="role" label="Admin Role" width="120" />
+      <el-table-column label="Finance Roles" flex>
+        <template #default="{ row }">
+          <FinanceRolesCell :admin-id="row.id" />
+        </template>
+      </el-table-column>
       <el-table-column label="" width="100">
         <template #default="{ row }">
           <el-button v-if="row.id !== auth.auth?.admin_id" type="danger" size="small" text
-            :loading="remove.isPending.value"
+            :loading="remove.isPending"
             @click="confirmRemove(row)">
             Remove
           </el-button>
